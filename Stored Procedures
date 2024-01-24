@@ -1,0 +1,166 @@
+-- PROCEDURE: public.Employee Sales by Country(timestamp without time zone, timestamp without time zone, refcursor)
+
+-- DROP PROCEDURE IF EXISTS public."Employee Sales by Country"(timestamp without time zone, timestamp without time zone, refcursor);
+
+CREATE OR REPLACE PROCEDURE public."Employee Sales by Country"(
+	IN p_beginning_date timestamp without time zone,
+	IN p_ending_date timestamp without time zone,
+	INOUT result refcursor)
+LANGUAGE 'plpgsql'
+AS $BODY$
+BEGIN
+OPEN RESULT FOR 
+SELECT "Employees"."Country", 
+	   "Employees"."LastName", 
+	   "Employees"."FirstName", 
+	   "Orders"."ShippedDate", 
+	   "Orders"."OrderID", 
+	   "OrderSubtotals"."Subtotal" AS SaleAmount
+FROM "Employees" INNER JOIN 
+	("Orders" INNER JOIN "OrderSubtotals" ON "Orders"."OrderID" = "OrderSubtotals"."OrderID") 
+	ON "Employees"."EmployeeID" = "Orders"."EmployeeID"
+WHERE "Orders"."ShippedDate" Between p_Beginning_Date And p_Ending_Date;
+END;
+$BODY$;
+ALTER PROCEDURE public."Employee Sales by Country"(timestamp without time zone, timestamp without time zone, refcursor)
+    OWNER TO postgres;
+
+-- PROCEDURE: public.Sales by Year(timestamp without time zone, timestamp without time zone, refcursor)
+
+-- DROP PROCEDURE IF EXISTS public."Sales by Year"(timestamp without time zone, timestamp without time zone, refcursor);
+
+CREATE OR REPLACE PROCEDURE public."Sales by Year"(
+	IN p_beginning_date timestamp without time zone,
+	IN p_ending_date timestamp without time zone,
+	INOUT result refcursor)
+LANGUAGE 'plpgsql'
+AS $BODY$
+BEGIN
+OPEN RESULT FOR 
+	SELECT 
+		"Orders"."ShippedDate", 
+		"Orders"."OrderID", 
+		"OrderSubtotals"."Subtotal", 
+		TO_CHAR("ShippedDate", 'YYYY') AS Year
+	FROM 
+		"Orders" INNER JOIN "OrderSubtotals" 
+		ON "Orders"."OrderID" = "OrderSubtotals".OrderID
+	WHERE 
+		"Orders"."ShippedDate" Between p_Beginning_Date And p_Ending_Date;
+END;
+$BODY$;
+ALTER PROCEDURE public."Sales by Year"(timestamp without time zone, timestamp without time zone, refcursor)
+    OWNER TO postgres;
+
+-- PROCEDURE: public.Ten Most Expensive Products(refcursor)
+
+-- DROP PROCEDURE IF EXISTS public."Ten Most Expensive Products"(refcursor);
+
+CREATE OR REPLACE PROCEDURE public."Ten Most Expensive Products"(
+	INOUT result refcursor)
+LANGUAGE 'plpgsql'
+AS $BODY$
+BEGIN
+OPEN RESULT FOR SELECT Products.ProductName AS TenMostExpensiveProducts, Products.UnitPrice
+FROM Products
+ORDER BY Products.UnitPrice DESC;
+END;
+$BODY$;
+ALTER PROCEDURE public."Ten Most Expensive Products"(refcursor)
+    OWNER TO postgres;
+
+-- PROCEDURE: public.custorderhist(text, refcursor)
+
+-- DROP PROCEDURE IF EXISTS public.custorderhist(text, refcursor);
+
+CREATE OR REPLACE PROCEDURE public.custorderhist(
+	IN p_customerid text,
+	INOUT result refcursor)
+LANGUAGE 'plpgsql'
+AS $BODY$
+BEGIN
+open result for SELECT "ProductName", SUM("Quantity") AS Total
+FROM "Products" P, "OrderDetails" OD, "Orders" O, "Customers" C
+WHERE C."CustomerID" =p_CustomerID
+AND C."CustomerID" = O."CustomerID" AND O."OrderID" = OD."OrderID" AND OD."ProductID" = P."ProductID"
+GROUP BY "ProductName";
+END;
+$BODY$;
+ALTER PROCEDURE public.custorderhist(text, refcursor)
+    OWNER TO postgres;
+
+-- PROCEDURE: public.custordersdetail(integer, refcursor)
+
+-- DROP PROCEDURE IF EXISTS public.custordersdetail(integer, refcursor);
+
+CREATE OR REPLACE PROCEDURE public.custordersdetail(
+	IN p_orderid integer,
+	INOUT result refcursor)
+LANGUAGE 'plpgsql'
+AS $BODY$
+BEGIN
+OPEN RESULT FOR SELECT "ProductName",
+    ROUND(Od."UnitPrice"::numeric, 2)::MONEY AS UnitPrice,
+    "Quantity",
+    CAST( "Discount" * 100 AS int)::MONEY AS Discount, 
+   Round((CAST( "Quantity" * (1 - "Discount") * Od."UnitPrice" AS numeric)),2)::MONEY AS ExtendedPrice
+FROM "Products" P, "OrderDetails" Od
+WHERE Od."ProductID" = P."ProductID" and Od."OrderID" = p_OrderID;
+END;
+$BODY$;
+ALTER PROCEDURE public.custordersdetail(integer, refcursor)
+    OWNER TO postgres;
+
+-- PROCEDURE: public.custordersorders(text, refcursor)
+
+-- DROP PROCEDURE IF EXISTS public.custordersorders(text, refcursor);
+
+CREATE OR REPLACE PROCEDURE public.custordersorders(
+	IN p_customerid text,
+	INOUT result refcursor)
+LANGUAGE 'plpgsql'
+AS $BODY$
+BEGIN
+OPEN RESULT FOR SELECT "OrderID", 
+	"OrderDate",
+	"RequiredDate",
+	"ShippedDate"
+FROM "Orders"
+WHERE "CustomerID" = p_CustomerID
+ORDER BY "OrderID";
+END;
+$BODY$;
+ALTER PROCEDURE public.custordersorders(text, refcursor)
+    OWNER TO postgres;
+
+-- PROCEDURE: public.salesbycategory(character varying, character varying, refcursor)
+
+-- DROP PROCEDURE IF EXISTS public.salesbycategory(character varying, character varying, refcursor);
+
+CREATE OR REPLACE PROCEDURE public.salesbycategory(
+	IN p_categoryname character varying,
+	IN p_ordyear character varying,
+	INOUT result refcursor)
+LANGUAGE 'plpgsql'
+AS $BODY$
+BEGIN
+IF p_OrdYear != '1996' AND p_OrdYear != '1997' AND p_OrdYear != '1998' 
+THEN
+ p_OrdYear := '1998';
+END IF;
+
+OPEN RESULT FOR 
+	SELECT ProductName,
+	ROUND(SUM(CAST( OD.Quantity * (1-OD.Discount) * OD.UnitPrice AS decimal(14,2))), 0) AS TotalPurchase
+FROM "Order Details" OD, Orders O, Products P, Categories C
+WHERE OD.OrderID = O.OrderID 
+	AND OD.ProductID = P.ProductID 
+	AND P.CategoryID = C.CategoryID
+	AND C.CategoryName = p_CategoryName
+	AND SUBSTRING(SUBSTR(TO_CHAR (O.OrderDate, 111), 1, 22), 1, 4) = p_OrdYear
+GROUP BY ProductName
+ORDER BY ProductName;
+END;
+$BODY$;
+ALTER PROCEDURE public.salesbycategory(character varying, character varying, refcursor)
+    OWNER TO postgres;

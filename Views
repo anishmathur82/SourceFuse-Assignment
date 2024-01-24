@@ -1,0 +1,282 @@
+-- View: public.Alphabetical list of products
+
+-- DROP VIEW public."Alphabetical list of products";
+
+CREATE OR REPLACE VIEW public."Alphabetical list of products"
+ AS
+ SELECT "Products"."ProductID",
+    "Products"."ProductName",
+    "Products"."SupplierID",
+    "Products"."CategoryID",
+    "Products"."QuantityPerUnit",
+    "Products"."UnitPrice",
+    "Products"."UnitsInStock",
+    "Products"."UnitsOnOrder",
+    "Products"."ReorderLevel",
+    "Products"."Discontinued",
+    "Categories"."CategoryName"
+   FROM "Categories"
+     JOIN "Products" ON "Categories"."CategoryID" = "Products"."CategoryID"
+  WHERE "Products"."Discontinued" = false;
+
+ALTER TABLE public."Alphabetical list of products"
+    OWNER TO postgres;
+
+
+-- View: public.Category Sales for 1997
+
+-- DROP VIEW public."Category Sales for 1997";
+
+CREATE OR REPLACE VIEW public."Category Sales for 1997"
+ AS
+ SELECT "CategoryName",
+    sum(productsales) AS categorysales
+   FROM "Product Sales for 1997"
+  GROUP BY "CategoryName";
+
+ALTER TABLE public."Category Sales for 1997"
+    OWNER TO postgres;
+
+-- View: public.Current Product List
+
+-- DROP VIEW public."Current Product List";
+
+CREATE OR REPLACE VIEW public."Current Product List"
+ AS
+ SELECT "ProductID",
+    "ProductName"
+   FROM "Products" "Product_List"
+  WHERE "Discontinued" = false;
+
+ALTER TABLE public."Current Product List"
+    OWNER TO postgres;
+
+-- View: public.Customer and Suppliers by City
+
+-- DROP VIEW public."Customer and Suppliers by City";
+
+CREATE OR REPLACE VIEW public."Customer and Suppliers by City"
+ AS
+ SELECT "Customers"."City",
+    "Customers"."CompanyName",
+    "Customers"."ContactName",
+    'Customers'::text AS relationship
+   FROM "Customers"
+UNION
+ SELECT "Suppliers"."City",
+    "Suppliers"."CompanyName",
+    "Suppliers"."ContactName",
+    'Suppliers'::text AS relationship
+   FROM "Suppliers";
+
+ALTER TABLE public."Customer and Suppliers by City"
+    OWNER TO postgres;
+
+-- View: public.Invoices
+
+-- DROP VIEW public."Invoices";
+
+CREATE OR REPLACE VIEW public."Invoices"
+ AS
+ SELECT "Orders"."ShipName",
+    "Orders"."ShipAddress",
+    "Orders"."ShipCity",
+    "Orders"."ShipRegion",
+    "Orders"."ShipPostalCode",
+    "Orders"."ShipCountry",
+    "Orders"."CustomerID",
+    "Customers"."CompanyName" AS customername,
+    "Customers"."Address",
+    "Customers"."City",
+    "Customers"."Region",
+    "Customers"."PostalCode",
+    "Customers"."Country",
+    concat(concat("Employees"."FirstName", ' '), "Employees"."LastName") AS salesperson,
+    "Orders"."OrderID",
+    "Orders"."OrderDate",
+    "Orders"."RequiredDate",
+    "Orders"."ShippedDate",
+    "Shippers"."CompanyName" AS shippername,
+    "OrderDetails"."ProductID",
+    "Products"."ProductName",
+    "OrderDetails"."UnitPrice",
+    "OrderDetails"."Quantity",
+    "OrderDetails"."Discount",
+    "OrderDetails"."UnitPrice" * "OrderDetails"."Quantity"::double precision * (1::double precision - "OrderDetails"."Discount") / 100::double precision * 100::double precision AS extendedprice,
+    "Orders"."Freight"
+   FROM "Shippers"
+     JOIN ("Products"
+     JOIN ("Employees"
+     JOIN ("Customers"
+     JOIN "Orders" ON "Customers"."CustomerID" = "Orders"."CustomerID") ON "Employees"."EmployeeID" = "Orders"."EmployeeID"
+     JOIN "OrderDetails" ON "Orders"."OrderID" = "OrderDetails"."OrderID") ON "Products"."ProductID" = "OrderDetails"."ProductID") ON "Shippers"."ShipperID" = "Orders"."ShipVia";
+
+ALTER TABLE public."Invoices"
+    OWNER TO postgres;
+
+-- View: public.Order Details Extended
+
+-- DROP VIEW public."Order Details Extended";
+
+CREATE OR REPLACE VIEW public."Order Details Extended"
+ AS
+ SELECT "OrderDetails"."OrderID",
+    "OrderDetails"."ProductID",
+    "Products"."ProductName",
+    "OrderDetails"."UnitPrice",
+    "OrderDetails"."Quantity",
+    "OrderDetails"."Discount",
+    "OrderDetails"."UnitPrice" * "OrderDetails"."Quantity"::double precision * (1::double precision - "OrderDetails"."Discount") / 100::double precision * 100::double precision AS extendedprice
+   FROM "Products"
+     JOIN "OrderDetails" ON "Products"."ProductID" = "OrderDetails"."ProductID";
+
+ALTER TABLE public."Order Details Extended"
+    OWNER TO postgres;
+
+-- View: public.Orders Qry
+
+-- DROP VIEW public."Orders Qry";
+
+CREATE OR REPLACE VIEW public."Orders Qry"
+ AS
+ SELECT "Orders"."OrderID",
+    "Orders"."CustomerID",
+    "Orders"."EmployeeID",
+    "Orders"."OrderDate",
+    "Orders"."RequiredDate",
+    "Orders"."ShippedDate",
+    "Orders"."ShipVia",
+    "Orders"."Freight",
+    "Orders"."ShipName",
+    "Orders"."ShipAddress",
+    "Orders"."ShipCity",
+    "Orders"."ShipRegion",
+    "Orders"."ShipPostalCode",
+    "Orders"."ShipCountry",
+    "Customers"."CompanyName",
+    "Customers"."Address",
+    "Customers"."City",
+    "Customers"."Region",
+    "Customers"."PostalCode",
+    "Customers"."Country"
+   FROM "Customers"
+     JOIN "Orders" ON "Customers"."CustomerID" = "Orders"."CustomerID";
+
+ALTER TABLE public."Orders Qry"
+    OWNER TO postgres;
+
+-- View: public.Product Sales for 1997
+
+-- DROP VIEW public."Product Sales for 1997";
+
+CREATE OR REPLACE VIEW public."Product Sales for 1997"
+ AS
+ SELECT "Categories"."CategoryName",
+    "Products"."ProductName",
+    sum("OrderDetails"."UnitPrice" * "OrderDetails"."Quantity"::double precision * (1::double precision - "OrderDetails"."Discount") / 100::double precision * 100::double precision) AS productsales
+   FROM "Categories"
+     JOIN "Products" ON "Categories"."CategoryID" = "Products"."CategoryID"
+     JOIN ("Orders"
+     JOIN "OrderDetails" ON "Orders"."OrderID" = "OrderDetails"."OrderID") ON "Products"."ProductID" = "OrderDetails"."ProductID"
+  WHERE "Orders"."ShippedDate" >= '1997-01-01'::date AND "Orders"."ShippedDate" <= '1997-12-31'::date
+  GROUP BY "Categories"."CategoryName", "Products"."ProductName";
+
+ALTER TABLE public."Product Sales for 1997"
+    OWNER TO postgres;
+
+-- View: public.Products Above Average Price
+
+-- DROP VIEW public."Products Above Average Price";
+
+CREATE OR REPLACE VIEW public."Products Above Average Price"
+ AS
+ SELECT "ProductName",
+    "UnitPrice"
+   FROM "Products"
+  WHERE "UnitPrice"::numeric > (( SELECT avg("Products_1"."UnitPrice"::numeric) AS avg
+           FROM "Products" "Products_1"));
+
+ALTER TABLE public."Products Above Average Price"
+    OWNER TO postgres;
+
+
+-- View: public.Products by Category
+
+-- DROP VIEW public."Products by Category";
+
+CREATE OR REPLACE VIEW public."Products by Category"
+ AS
+ SELECT "Categories"."CategoryName",
+    "Products"."ProductName",
+    "Products"."QuantityPerUnit",
+    "Products"."UnitsInStock",
+    "Products"."Discontinued"
+   FROM "Categories"
+     JOIN "Products" ON "Categories"."CategoryID" = "Products"."CategoryID"
+  WHERE "Products"."Discontinued" <> true;
+
+ALTER TABLE public."Products by Category"
+    OWNER TO postgres;
+
+
+-- View: public.Quarterly Orders
+
+-- DROP VIEW public."Quarterly Orders";
+
+CREATE OR REPLACE VIEW public."Quarterly Orders"
+ AS
+ SELECT DISTINCT "Customers"."CustomerID",
+    "Customers"."CompanyName",
+    "Customers"."City",
+    "Customers"."Country"
+   FROM "Customers"
+     RIGHT JOIN "Orders" ON "Customers"."CustomerID" = "Orders"."CustomerID"
+  WHERE "Orders"."OrderDate" >= '1997-01-01'::date AND "Orders"."OrderDate" <= '1997-12-31'::date;
+
+ALTER TABLE public."Quarterly Orders"
+    OWNER TO postgres;
+
+-- View: public.Sales Totals by Amount
+
+-- DROP VIEW public."Sales Totals by Amount";
+
+CREATE OR REPLACE VIEW public."Sales Totals by Amount"
+ AS
+ SELECT 'select'::text AS "?column?";
+
+ALTER TABLE public."Sales Totals by Amount"
+    OWNER TO postgres;
+
+-- View: public.Sales by Category
+
+-- DROP VIEW public."Sales by Category";
+
+CREATE OR REPLACE VIEW public."Sales by Category"
+ AS
+ SELECT 'select'::text AS "?column?";
+
+ALTER TABLE public."Sales by Category"
+    OWNER TO postgres;
+
+-- View: public.Summary of Sales by Quarter
+
+-- DROP VIEW public."Summary of Sales by Quarter";
+
+CREATE OR REPLACE VIEW public."Summary of Sales by Quarter"
+ AS
+ SELECT 'select'::text AS "?column?";
+
+ALTER TABLE public."Summary of Sales by Quarter"
+    OWNER TO postgres;
+
+-- View: public.Summary of Sales by Year
+
+-- DROP VIEW public."Summary of Sales by Year";
+
+CREATE OR REPLACE VIEW public."Summary of Sales by Year"
+ AS
+ SELECT 'select'::text AS "?column?";
+
+ALTER TABLE public."Summary of Sales by Year"
+    OWNER TO postgres;
+
